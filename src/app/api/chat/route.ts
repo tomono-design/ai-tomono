@@ -48,42 +48,58 @@ const SYSTEM_PROMPT = `あなたは「AI友野」です。友野剛行の考え�
 - 個人が特定されるような情報は入力しないことをやさしく伝える。`;
 
 export async function POST(req: Request) {
-  const { message, history } = await req.json();
+  try {
+    const { message, history } = await req.json();
 
-  const relevant = search(message, 5);
-  const context =
-    relevant.length > 0
-      ? `【関連する友野の資料・講演より】\n${relevant.map((c) => c.text).join("\n\n")}\n\n`
-      : "";
+    const relevant = search(message, 3);
+    const context =
+      relevant.length > 0
+        ? `【関連する友野の資料・講演より】\n${relevant.map((c) => c.text).join("\n\n")}\n\n`
+        : "";
 
-  const messages: Groq.Chat.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...(history || []).map((m: { role: string; content: string }) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
-    { role: "user", content: context + message },
-  ];
+    // 会話履歴は直近6件（3往復）に制限してトークン超過を防ぐ
+    const recentHistory = (history || []).slice(-6);
 
-  const stream = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    messages,
-    max_tokens: 1024,
-    stream: true,
-  });
+    const messages: Groq.Chat.ChatCompletionMessageParam[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...recentHistory.map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+      { role: "user", content: context + message },
+    ];
 
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of stream) {
-        const text = chunk.choices[0]?.delta?.content || "";
-        if (text) controller.enqueue(encoder.encode(text));
-      }
-      controller.close();
-    },
-  });
+    const stream = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      max_tokens: 1024,
+      stream: true,
+    });
 
-  return new Response(readable, {
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-  });
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const text = chunk.choices[0]?.delta?.content || "";
+            if (text) controller.enqueue(encoder.encode(text));
+          }
+        } catch {
+          controller.enqueue(encoder.encode("少し考えさせてね。もう一度話しかけてみてください。"));
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+
+  } catch {
+    return new Response("少し考えさせてね。もう一度話しかけてみてください。", {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
 }
