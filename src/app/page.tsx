@@ -19,10 +19,28 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+
+  function speak(text: string, index: number) {
+    if (!window.speechSynthesis) return;
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ja-JP";
+    utterance.rate = 0.9;
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+    setSpeakingIndex(index);
+    window.speechSynthesis.speak(utterance);
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -200,14 +218,28 @@ export default function Home() {
                     />
                   </div>
                 )}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "bg-amber-700 text-white rounded-tr-none"
-                      : "bg-white text-gray-800 shadow-sm rounded-tl-none"
-                  }`}
-                >
-                  {msg.content || (loading && i === messages.length - 1 ? "▌" : "")}
+                <div className="flex flex-col gap-1 max-w-[80%]">
+                  <div
+                    className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "bg-amber-700 text-white rounded-tr-none"
+                        : "bg-white text-gray-800 shadow-sm rounded-tl-none"
+                    }`}
+                  >
+                    {msg.content || (loading && i === messages.length - 1 ? "▌" : "")}
+                  </div>
+                  {msg.role === "assistant" && msg.content && (
+                    <button
+                      onClick={() => speak(msg.content, i)}
+                      className={`self-start text-xs px-2 py-1 rounded-lg transition-colors ${
+                        speakingIndex === i
+                          ? "bg-amber-600 text-white"
+                          : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                      }`}
+                    >
+                      {speakingIndex === i ? "⏹ 停止" : "🔊 音読"}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
