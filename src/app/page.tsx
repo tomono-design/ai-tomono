@@ -33,23 +33,35 @@ export default function Home() {
       return;
     }
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "ja-JP";
-    utterance.rate = 0.9;
 
-    // 男性の日本語音声を優先して選択
-    const voices = window.speechSynthesis.getVoices();
-    const maleJapanese = voices.find(
-      (v) => v.lang.startsWith("ja") && /keita|otoya|ichiro|male|男/i.test(v.name)
-    );
-    const anyJapanese = voices.find((v) => v.lang.startsWith("ja"));
-    if (maleJapanese) utterance.voice = maleJapanese;
-    else if (anyJapanese) utterance.voice = anyJapanese;
+    const doSpeak = () => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ja-JP";
+      utterance.rate = 0.85;  // やや遅め・自然なペース
+      utterance.pitch = 0.75; // 低めのピッチ（男性的）
+      utterance.volume = 1.0;
 
-    utterance.onend = () => setSpeakingIndex(null);
-    utterance.onerror = () => setSpeakingIndex(null);
-    setSpeakingIndex(index);
-    window.speechSynthesis.speak(utterance);
+      // 男性の日本語音声を優先して選択
+      const voices = window.speechSynthesis.getVoices();
+      const maleJapanese = voices.find(
+        (v) => v.lang.startsWith("ja") && /keita|otoya|ichiro/i.test(v.name)
+      );
+      const anyJapanese = voices.find((v) => v.lang.startsWith("ja"));
+      if (maleJapanese) utterance.voice = maleJapanese;
+      else if (anyJapanese) utterance.voice = anyJapanese;
+
+      utterance.onend = () => setSpeakingIndex(null);
+      utterance.onerror = () => setSpeakingIndex(null);
+      setSpeakingIndex(index);
+      window.speechSynthesis.speak(utterance);
+    };
+
+    // 音声リストが未ロードの場合は読み込み後に実行
+    if (window.speechSynthesis.getVoices().length > 0) {
+      doSpeak();
+    } else {
+      window.speechSynthesis.onvoiceschanged = doSpeak;
+    }
   }
 
   useEffect(() => {
