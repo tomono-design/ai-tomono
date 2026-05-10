@@ -17,6 +17,7 @@ SOURCE_DIRS = [
     ICLOUD / "あんど" / "講演" / "原稿",
     ICLOUD / "あんど" / "原稿",
     ICLOUD / "作品",
+    ICLOUD / "NotebookLM" / "書籍",
 ]
 
 OUTPUT_FILE = Path(__file__).parent.parent / "src" / "data" / "chunks.json"
