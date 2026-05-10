@@ -36,6 +36,16 @@ export default function Home() {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "ja-JP";
     utterance.rate = 0.9;
+
+    // 男性の日本語音声を優先して選択
+    const voices = window.speechSynthesis.getVoices();
+    const maleJapanese = voices.find(
+      (v) => v.lang.startsWith("ja") && /keita|otoya|ichiro|male|男/i.test(v.name)
+    );
+    const anyJapanese = voices.find((v) => v.lang.startsWith("ja"));
+    if (maleJapanese) utterance.voice = maleJapanese;
+    else if (anyJapanese) utterance.voice = anyJapanese;
+
     utterance.onend = () => setSpeakingIndex(null);
     utterance.onerror = () => setSpeakingIndex(null);
     setSpeakingIndex(index);
