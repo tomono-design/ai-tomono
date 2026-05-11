@@ -24,6 +24,19 @@ export default function Home() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+
+  // 音声リストを事前にロード
+  useEffect(() => {
+    const loadVoices = () => {
+      voicesRef.current = window.speechSynthesis.getVoices();
+    };
+    loadVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
+    };
+  }, []);
 
   function speak(text: string, index: number) {
     if (!window.speechSynthesis) return;
@@ -34,34 +47,27 @@ export default function Home() {
     }
     window.speechSynthesis.cancel();
 
-    const doSpeak = () => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "ja-JP";
-      utterance.rate = 0.85;  // やや遅め・自然なペース
-      utterance.pitch = 0.75; // 低めのピッチ（男性的）
-      utterance.volume = 1.0;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ja-JP";
+    utterance.rate = 0.85;
+    utterance.pitch = 0.75;
+    utterance.volume = 1.0;
 
-      // 男性の日本語音声を優先して選択
-      const voices = window.speechSynthesis.getVoices();
-      const maleJapanese = voices.find(
-        (v) => v.lang.startsWith("ja") && /keita|otoya|ichiro/i.test(v.name)
-      );
-      const anyJapanese = voices.find((v) => v.lang.startsWith("ja"));
-      if (maleJapanese) utterance.voice = maleJapanese;
-      else if (anyJapanese) utterance.voice = anyJapanese;
+    const voices = voicesRef.current.length > 0
+      ? voicesRef.current
+      : window.speechSynthesis.getVoices();
 
-      utterance.onend = () => setSpeakingIndex(null);
-      utterance.onerror = () => setSpeakingIndex(null);
-      setSpeakingIndex(index);
-      window.speechSynthesis.speak(utterance);
-    };
+    const maleJapanese = voices.find(
+      (v) => v.lang.startsWith("ja") && /keita|otoya|ichiro/i.test(v.name)
+    );
+    const anyJapanese = voices.find((v) => v.lang.startsWith("ja"));
+    if (maleJapanese) utterance.voice = maleJapanese;
+    else if (anyJapanese) utterance.voice = anyJapanese;
 
-    // 音声リストが未ロードの場合は読み込み後に実行
-    if (window.speechSynthesis.getVoices().length > 0) {
-      doSpeak();
-    } else {
-      window.speechSynthesis.onvoiceschanged = doSpeak;
-    }
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+    setSpeakingIndex(index);
+    window.speechSynthesis.speak(utterance);
   }
 
   useEffect(() => {
@@ -131,6 +137,10 @@ export default function Home() {
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setLoading(true);
 
+    // 「少し考えるね」を表示してから数秒待つ
+    setMessages((prev) => [...prev, { role: "assistant", content: "少し考えるね…" }]);
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
     const history = messages.slice(1).map((m) => ({
       role: m.role,
       content: m.content,
@@ -149,7 +159,12 @@ export default function Home() {
       const decoder = new TextDecoder();
       let assistantText = "";
 
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      // 「少し考えるね」を空に差し替えてストリーミング開始
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: "" };
+        return updated;
+      });
 
       while (true) {
         const { done, value } = await reader.read();
